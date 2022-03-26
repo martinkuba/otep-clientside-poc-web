@@ -9,10 +9,13 @@ import {
   RandomIdGenerator,
 } from '@opentelemetry/core';
 
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+
 import LogRecord from "./logs-sdk/LogRecord";
 import LogEmitterProvider from "./logs-sdk/LogEmitterProvider";
 import SimpleLogProcessor from "./logs-sdk/SimpleLogProcessor";
 import ConsoleLogExporter from "./logs-sdk/export/ConsoleLogExporter";
+import OTLPLogExporter from "./logs-sdk/export/OTLPLogExporter";
 import OTLPLocalStorgeTraceExporter from "./local-storage-exporter/OTLPLocalStorgeTraceExporter";
 import OTLPLocalStorgeLogExporter from "./local-storage-exporter/OTLPLocalStorageLogExporter";
 
@@ -35,6 +38,7 @@ function getResourceWithNewSession(forceRefresh) {
   }
 
   let resourceAttributes : ResourceAttributes = {
+    'service.name': 'browser-test1',
     'session.id': sessionId,
     'session.scriptInstance': scriptInstaceId
   }
@@ -100,10 +104,24 @@ export const ExampleOtelBundle: OtelWebType = {
     const traceProvider = new WebTracerProvider({resource});
     traceProvider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
     traceProvider.addSpanProcessor(new BatchSpanProcessor(new OTLPLocalStorgeTraceExporter()));
+
+    // const collectorUrl = 'http://localhost:4318';
+    const collectorUrl = 'http://18.237.53.190:4318';
+    const collectorOptions = {
+      url: collectorUrl + '/v1/traces',
+      headers: {},
+      concurrencyLimit: 10,
+    };
+
+    const provider = new WebTracerProvider();
+    const exporter = new OTLPTraceExporter(collectorOptions);
+    traceProvider.addSpanProcessor(new BatchSpanProcessor(exporter));
+
     traceProvider.register();
 
     const logProvider = new LogEmitterProvider({resource});
     logProvider.addLogProcessor(new SimpleLogProcessor(new ConsoleLogExporter()));
+    logProvider.addLogProcessor(new SimpleLogProcessor(new OTLPLogExporter(collectorUrl + '/v1/logs')));
     logProvider.addLogProcessor(new SimpleLogProcessor(new OTLPLocalStorgeLogExporter()));
     logProvider.register();
 
